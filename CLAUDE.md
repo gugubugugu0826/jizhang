@@ -62,7 +62,7 @@
 │   │   └── index.ts             # 安全 API 暴露给渲染进程
 │   ├── shared/
 │   │   ├── types.ts             # TypeScript 类型定义
-│   │   ├── categories.ts        # 10大类48小类分类数据
+│   │   ├── categories.ts        # 系统分类种子数据（10大类48小类）
 │   │   └── parser.ts            # 本地正则解析器
 │   └── renderer/
 │       ├── index.html
@@ -70,15 +70,16 @@
 │           ├── main.tsx         # React 入口
 │           ├── App.tsx          # 主布局 + 导航路由
 │           ├── App.css          # 全局样式
-│           ├── pages/           # 7 个页面
-│           │   ├── SmartInputPage.tsx   # 智能录入（AI解析）
-│           │   ├── HomePage.tsx         # 花销记录列表
-│           │   ├── StatisticsPage.tsx   # 统计分析（图表）
-│           │   ├── SettlementPage.tsx   # 分账结算
-│           │   ├── BalancePage.tsx      # 欠款结余
-│           │   ├── HistoryPage.tsx      # 变动记录
-│           │   ├── PeopleManagePage.tsx # 人员管理
-│           │   └── SettingsPage.tsx     # 设置（汇率/AI）
+│           ├── pages/           # 8 个页面
+│           │   ├── SmartInputPage.tsx     # 智能录入（AI解析）
+│           │   ├── HomePage.tsx           # 花销记录列表
+│           │   ├── StatisticsPage.tsx     # 统计分析（图表）
+│           │   ├── SettlementPage.tsx     # 分账结算
+│           │   ├── BalancePage.tsx        # 欠款结余
+│           │   ├── HistoryPage.tsx        # 变动记录
+│           │   ├── PeopleManagePage.tsx   # 人员管理
+│           │   ├── CategoryManagePage.tsx # 分类管理
+│           │   └── SettingsPage.tsx       # 设置（汇率/AI）
 │           └── components/
 │               └── AddExpenseModal.tsx  # 添加花销弹窗
 ```
@@ -94,6 +95,7 @@
 | `expense_items` | 分摊明细 | expense_id, person_id, amount, note |
 | `exchange_rates` | 汇率 | from_currency, to_currency, rate |
 | `balance_records` | 欠款变动 | person_id, currency, amount, type(expense/manual/settle), note |
+| `categories` | 分类 | id, name, icon, parent_id, is_system, sort_order |
 | `settings` | 配置 | key, value |
 
 ---
@@ -164,3 +166,41 @@ npm run package:mac      # 打包 macOS 安装包
 2. 用通俗语言解释每个方案的优点和缺点
 3. 给出推荐方案并说明理由
 4. 等待用户选择后再实施
+
+---
+
+## 版本发布流程
+
+当用户说"发布新版本"、"准备上线"、"打个版本"、"release"、"版本迭代"、"version bump"或提到版本号变更时，自动执行以下标准化发布流程。每步用 `✅ Step X/7` 汇报进度。
+
+### Step 1 — 环境检查
+- `git branch --show-current` 确认在主分支
+- `git status --short` 确认工作区干净
+- `git pull origin $(git branch --show-current)` 同步最新
+
+### Step 2 — 确定版本号
+- 用户指定 → 直接用
+- 未指定 → 按 SemVer 推断：fix→PATCH, feat→MINOR, breaking→MAJOR
+
+### Step 3 — 更新版本文件
+- `package.json` → `npm version <版本号> --no-git-tag-version`
+
+### Step 4 — 生成 Changelog
+- `git log $(git describe --tags --abbrev=0)..HEAD --pretty=format:"- %s" --reverse`
+- 展示给用户确认
+
+### Step 5 — 提交 + Tag
+- `git add . && git commit -m "chore(release): v<版本号>"`
+- `git tag -a v<版本号> -m "v<版本号> - <摘要>"`
+
+### Step 6 — 推送
+- `git push origin $(git branch --show-current)`
+- `git push origin v<版本号>`
+
+### Step 7 — GitHub Release
+- `gh release create v<版本号> --title "v<版本号>" --notes "<changelog>" --latest`
+- 无 gh CLI → 输出手动创建链接
+
+### 安全红线
+- 绝不自动 `git push --force` 或 `git reset --hard`
+- 危险操作必须二次确认

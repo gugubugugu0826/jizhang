@@ -24,6 +24,7 @@ export interface ParserContext {
   people: { id: number; name: string }[]
   defaultCurrency?: Currency
   defaultDate?: string
+  categories?: { id: string; name: string; children: { id: string; name: string }[] }[]
 }
 
 // ---- 辅助函数 ----
@@ -67,7 +68,20 @@ const CAT_HINTS: {re:RegExp;c1:string;c2:string}[] = [
   {re:/保险|贷款|手续费/g,c1:'finance',c2:'insurance'},
   {re:/收卡|买酒/g,c1:'other',c2:'misc'},
 ]
-function detectCat(t: string){ for(const h of CAT_HINTS){h.re.lastIndex=0;if(h.re.test(t))return{c1:h.c1,c2:h.c2}} return{c1:'other',c2:'misc'} }
+function detectCat(t: string, categories?: ParserContext['categories']): {c1:string;c2:string} {
+  // 先检查硬编码关键词（最常见的场景）
+  for (const h of CAT_HINTS) { h.re.lastIndex = 0; if (h.re.test(t)) return { c1: h.c1, c2: h.c2 } }
+  // 再检查用户自定义分类：如果文本中出现分类名，则匹配
+  if (categories) {
+    for (const main of categories) {
+      for (const sub of main.children) {
+        if (t.includes(sub.name)) return { c1: main.id, c2: sub.id }
+      }
+      if (t.includes(main.name)) return { c1: main.id, c2: main.children[0]?.id || 'misc' }
+    }
+  }
+  return { c1: 'other', c2: 'misc' }
+}
 
 // ---- 主函数 ----
 export function parseText(raw: string, ctx: ParserContext): ParsedExpense[] {
@@ -121,7 +135,7 @@ function parseBlock(
   const cnyCount = (text.match(/\d+\.?\d*\s*(?:人民币|元|块)/g)||[]).length
   const currency: Currency = cnyCount > audCount ? 'CNY' : 'AUD'
 
-  const {c1:cat1, c2:cat2} = detectCat(text)
+  const {c1:cat1, c2:cat2} = detectCat(text, ctx.categories)
 
   // ---- 模式1: "廖泽平是XX刀加YY刀，黄柏清是ZZ刀" - 多个人的金额直接分配 ----
   const personAmts = extractPersonAmounts(text, nameMap)

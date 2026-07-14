@@ -8,7 +8,8 @@ import {
   TeamOutlined,
   DollarOutlined,
   HistoryOutlined,
-  AccountBookOutlined
+  AccountBookOutlined,
+  AppstoreOutlined
 } from '@ant-design/icons'
 import { useState } from 'react'
 import zhCN from 'antd/locale/zh_CN'
@@ -17,6 +18,7 @@ import StatisticsPage from './pages/StatisticsPage'
 import SettingsPage from './pages/SettingsPage'
 import SmartInputPage from './pages/SmartInputPage'
 import PeopleManagePage from './pages/PeopleManagePage'
+import CategoryManagePage from './pages/CategoryManagePage'
 import SettlementPage from './pages/SettlementPage'
 import BalancePage from './pages/BalancePage'
 import HistoryPage from './pages/HistoryPage'
@@ -36,12 +38,14 @@ function App(): JSX.Element {
     { key: '/balance', icon: <AccountBookOutlined />, label: '欠款结余' },
     { key: '/history', icon: <HistoryOutlined />, label: '变动记录' },
     { key: '/people', icon: <TeamOutlined />, label: '人员管理' },
+    { key: '/categories', icon: <AppstoreOutlined />, label: '分类管理' },
     { key: '/settings', icon: <SettingOutlined />, label: '设置' }
   ]
 
   const pathToKey = (p: string) => {
     if (p === '/smart-input') return '/smart-input'
     if (p === '/people') return '/people'
+    if (p === '/categories') return '/categories'
     if (p === '/statistics') return '/statistics'
     if (p === '/settlement') return '/settlement'
     if (p === '/balance') return '/balance'
@@ -82,6 +86,7 @@ function App(): JSX.Element {
               <Route path="/balance" element={<BalancePage />} />
               <Route path="/history" element={<HistoryPage />} />
               <Route path="/people" element={<PeopleManagePage />} />
+              <Route path="/categories" element={<CategoryManagePage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Routes>
           </Content>

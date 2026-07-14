@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Input, Button, Tag, Space, message, Alert, Typography, Modal, Spin } from 'antd'
 import { ThunderboltOutlined, RobotOutlined, CheckOutlined, LoadingOutlined, KeyOutlined } from '@ant-design/icons'
-import type { Person, Currency, NewExpense, NewExpenseItem } from '../../../shared/types'
+import type { Person, Currency, NewExpense, NewExpenseItem, Category } from '../../../shared/types'
 import type { ParsedExpense } from '../../../shared/parser'
 import { parseText } from '../../../shared/parser'
 
@@ -21,11 +21,12 @@ const PROVIDERS = [
 // 解析结果弹窗（独立 Modal，滚动由 Modal 自身处理）
 // ============================================================
 function ResultModal({
-  open, results: _results, people, onClose, onSubmit
+  open, results: _results, people, categories, onClose, onSubmit
 }: {
   open: boolean
   results: ParsedExpense[]
   people: Person[]
+  categories: Category[]
   onClose: () => void
   onSubmit: (list: ParsedExpense[]) => void
 }) {
@@ -126,20 +127,19 @@ function ResultModal({
             <Tag color={r.currency === 'CNY' ? 'red' : 'blue'}>{r.currency === 'CNY' ? '¥' : '$'}</Tag>
             <input type="date" value={r.date} onChange={e => upd(r.key, 'date', e.target.value)}
               style={{ width: 130, height: 30, border: '1px solid #d9d9d9', borderRadius: 4, padding: '0 6px', fontSize: 13 }} />
-            <select value={r.category1} onChange={e => upd(r.key, 'category1', e.target.value)}
+            <select value={r.category1} onChange={e => { upd(r.key, 'category1', e.target.value); upd(r.key, 'category2', '') }}
               style={{ height: 30, border: '1px solid #d9d9d9', borderRadius: 4, padding: '0 6px', fontSize: 13, background: '#fff', cursor: 'pointer' }}>
-              <option value="food">🍽️ 餐饮美食</option>
-              <option value="transport">🚗 交通出行</option>
-              <option value="shopping">🛒 购物消费</option>
-              <option value="housing">🏠 住房生活</option>
-              <option value="entertainment">🎮 娱乐休闲</option>
-              <option value="health">🏥 医疗健康</option>
-              <option value="education">📚 教育学习</option>
-              <option value="social">🎁 人情往来</option>
-              <option value="finance">💼 金融保险</option>
-              <option value="other">📦 其他支出</option>
+              {categories.map(c => (
+                <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+              ))}
             </select>
-            <Text ellipsis style={{ maxWidth: 240, flex: 1 }}>{r.note}</Text>
+            <select value={r.category2} onChange={e => upd(r.key, 'category2', e.target.value)}
+              style={{ height: 30, border: '1px solid #d9d9d9', borderRadius: 4, padding: '0 6px', fontSize: 13, background: '#fff', cursor: 'pointer' }}>
+              {(categories.find(c => c.id === r.category1)?.children || []).map(sub => (
+                <option key={sub.id} value={sub.id}>{sub.name}</option>
+              ))}
+            </select>
+            <Text ellipsis style={{ maxWidth: 200, flex: 1 }}>{r.note}</Text>
             {r.items.length === 0 && <Tag color="orange">缺分摊人</Tag>}
           </div>
 
@@ -228,6 +228,7 @@ function ResultModal({
 export default function SmartInputPage() {
   const [text, setText] = useState('')
   const [people, setPeople] = useState<Person[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [parsing, setParsing] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
   const [parseError, setParseError] = useState('')
@@ -249,7 +250,14 @@ export default function SmartInputPage() {
 
   const loadAll = async () => {
     try {
-      setPeople(await window.api.getPeople())
+      const [ppl, cats] = await Promise.all([window.api.getPeople(), window.api.getCategories()])
+      setPeople(ppl)
+      setCategories(cats)
+    } catch {
+      message.error('加载基础数据失败，请重启应用')
+    }
+    // 设置加载失败不影响主功能
+    try {
       const [pid, key, ep, m] = await Promise.all([
         window.api.getSetting('ai_provider'), window.api.getSetting('ai_api_key'),
         window.api.getSetting('ai_custom_endpoint'), window.api.getSetting('ai_custom_model')
@@ -278,7 +286,7 @@ export default function SmartInputPage() {
     if (!text.trim()) { message.warning('请先粘贴记账文字'); return }
     setParsing(true); setParseError('')
     try {
-      const parsed = parseText(text, { people, defaultCurrency, defaultDate })
+      const parsed = parseText(text, { people, defaultCurrency, defaultDate, categories })
       if (parsed.length === 0) { setParseError('本地解析未能识别，请尝试 AI 解析。'); return }
       setResults(parsed)
       setModalOpen(true)
@@ -293,7 +301,7 @@ export default function SmartInputPage() {
     try {
       const endpoint = provider.id === 'custom' ? customEp : provider.endpoint
       const model = provider.id === 'custom' ? customModel : provider.model
-      const res = await window.api.aiParse(text, people, { endpoint, model, apiKey, providerId: provider.id })
+      const res = await window.api.aiParse(text, people, { endpoint, model, apiKey, providerId: provider.id, categories })
       if (!res.success) { setParseError(`AI 解析失败：${res.error}`); return }
       const parsed: ParsedExpense[] = res.expenses.map((e: any) => ({
         currency: e.currency as Currency,
@@ -366,6 +374,7 @@ export default function SmartInputPage() {
         open={modalOpen}
         results={results}
         people={people}
+        categories={categories}
         onClose={() => setModalOpen(false)}
         onSubmit={() => { }}
       />

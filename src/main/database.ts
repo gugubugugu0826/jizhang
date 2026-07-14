@@ -4,7 +4,8 @@
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 import { join } from 'path'
-import type { Expense, NewExpense, ExpenseItem, NewExpenseItem, Person, ExchangeRate, Currency } from '../shared/types'
+import type { Expense, NewExpense, ExpenseItem, NewExpenseItem, Person, ExchangeRate, Currency, Category } from '../shared/types'
+import { SYSTEM_CATEGORIES } from '../shared/categories'
 
 let db: Database.Database
 
@@ -114,6 +115,19 @@ export function initDatabase(): void {
   `)
   db.exec(`CREATE INDEX IF NOT EXISTS idx_balance_person ON balance_records(person_id, currency)`)
 
+  // 创建分类表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      icon TEXT DEFAULT '',
+      parent_id TEXT,
+      is_system INTEGER DEFAULT 0,
+      sort_order INTEGER DEFAULT 0,
+      FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE CASCADE
+    )
+  `)
+
   // 种子数据
   seedData()
 }
@@ -134,6 +148,21 @@ function seedData(): void {
 
   // API Key 由用户自行配置，不预置
   // 用户可在「智能录入」→「配置 API」中设置自己的 Key
+
+  // 种子系统分类
+  const catCount = (db.prepare('SELECT COUNT(*) as c FROM categories').get() as { c: number }).c
+  if (catCount === 0) {
+    const insertCat = db.prepare(
+      'INSERT INTO categories (id, name, icon, parent_id, is_system, sort_order) VALUES (?, ?, ?, ?, 1, ?)'
+    )
+    let sortIdx = 0
+    for (const main of SYSTEM_CATEGORIES) {
+      insertCat.run(main.id, main.name, main.icon, null, sortIdx++)
+      for (const sub of main.children) {
+        insertCat.run(sub.id, sub.name, '', main.id, sortIdx++)
+      }
+    }
+  }
 }
 
 // ============================================================
@@ -531,6 +560,148 @@ export function getSetting(key: string): string | undefined {
 
 export function setSetting(key: string, value: string): void {
   db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value)
+}
+
+// ============================================================
+// 分类 CRUD
+// ============================================================
+
+interface DbCategory {
+  id: string
+  name: string
+  icon: string
+  parent_id: string | null
+  is_system: number
+  sort_order: number
+}
+
+export function getAllCategories(): Category[] {
+  const rows = db.prepare(
+    'SELECT * FROM categories ORDER BY is_system DESC, sort_order, id'
+  ).all() as DbCategory[]
+
+  const mainRows = rows.filter(r => r.parent_id === null)
+  return mainRows.map(m => ({
+    id: m.id,
+    name: m.name,
+    icon: m.icon,
+    isSystem: m.is_system === 1,
+    children: rows
+      .filter(r => r.parent_id === m.id)
+      .map(c => ({
+        id: c.id,
+        name: c.name,
+        icon: c.icon || undefined,
+        isSystem: c.is_system === 1
+      }))
+  }))
+}
+
+export function getCategoryById(id: string): DbCategory | undefined {
+  return db.prepare('SELECT * FROM categories WHERE id = ?').get(id) as DbCategory | undefined
+}
+
+export function addCategory(name: string, icon: string, parentId: string | null): { success: boolean; category?: DbCategory; error?: string } {
+  const id = 'user_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6)
+
+  if (parentId !== null) {
+    const parent = getCategoryById(parentId)
+    if (!parent) return { success: false, error: '父分类不存在' }
+  }
+
+  db.prepare(
+    'INSERT INTO categories (id, name, icon, parent_id, is_system, sort_order) VALUES (?, ?, ?, ?, 0, 99)'
+  ).run(id, name, icon, parentId)
+
+  const cat = getCategoryById(id)
+  return { success: true, category: cat }
+}
+
+export function updateCategory(id: string, name: string, icon?: string): { success: boolean; error?: string } {
+  const cat = getCategoryById(id)
+  if (!cat) return { success: false, error: '分类不存在' }
+  if (cat.is_system) return { success: false, error: '系统分类不可编辑' }
+
+  if (icon !== undefined) {
+    db.prepare('UPDATE categories SET name = ?, icon = ? WHERE id = ?').run(name, icon, id)
+  } else {
+    db.prepare('UPDATE categories SET name = ? WHERE id = ?').run(name, id)
+  }
+  return { success: true }
+}
+
+export function deleteCategory(id: string): { success: boolean; error?: string } {
+  const cat = getCategoryById(id)
+  if (!cat) return { success: false, error: '分类不存在' }
+  if (cat.is_system) return { success: false, error: '系统分类不可删除' }
+
+  // 用事务包裹检查+删除，防止 TOCTOU 竞态
+  const begin = db.prepare('BEGIN IMMEDIATE')
+  const commit = db.prepare('COMMIT')
+  const rollback = db.prepare('ROLLBACK')
+
+  try {
+    begin.run()
+
+    if (cat.parent_id === null) {
+      // 删除大类：先检查自身和子类的花销引用
+      const mainUsage = db.prepare(
+        'SELECT COUNT(*) as c FROM expenses WHERE category1 = ?'
+      ).get(id) as { c: number }
+      if (mainUsage.c > 0) {
+        rollback.run()
+        return { success: false, error: `有 ${mainUsage.c} 条花销记录使用了该大类，无法删除` }
+      }
+
+      const children = db.prepare(
+        'SELECT id FROM categories WHERE parent_id = ?'
+      ).all(id) as { id: string }[]
+
+      for (const child of children) {
+        const childUsage = db.prepare(
+          'SELECT COUNT(*) as c FROM expenses WHERE category2 = ?'
+        ).get(child.id) as { c: number }
+        if (childUsage.c > 0) {
+          rollback.run()
+          return { success: false, error: `子分类有 ${childUsage.c} 条花销记录，无法删除主分类` }
+        }
+      }
+
+      db.prepare('DELETE FROM categories WHERE parent_id = ?').run(id)
+    } else {
+      // 删除小类
+      const usage = db.prepare(
+        'SELECT COUNT(*) as c FROM expenses WHERE category2 = ?'
+      ).get(id) as { c: number }
+      if (usage.c > 0) {
+        rollback.run()
+        return { success: false, error: `有 ${usage.c} 条花销记录使用了该小类，无法删除` }
+      }
+    }
+
+    db.prepare('DELETE FROM categories WHERE id = ?').run(id)
+    commit.run()
+    return { success: true }
+  } catch (err: any) {
+    try { rollback.run() } catch {}
+    return { success: false, error: `删除失败：${err.message || err}` }
+  }
+}
+
+export function getCategoryInfo(cat1: string, cat2: string): {
+  category1Name: string
+  category1Icon: string
+  category2Name: string
+} | null {
+  const c1 = getCategoryById(cat1)
+  if (!c1) return null
+  const c2 = getCategoryById(cat2)
+  if (!c2) return null
+  return {
+    category1Name: c1.name,
+    category1Icon: c1.icon,
+    category2Name: c2.name
+  }
 }
 
 // ============================================================

@@ -2,12 +2,14 @@
 // AI 解析器（主进程，支持多提供商）
 // ============================================================
 import https from 'https'
+import type { Category } from '../shared/types'
 
 export interface AiParseOptions {
   endpoint: string
   model: string
   apiKey: string
   providerId: string
+  categories?: Category[]
 }
 
 export interface AiParseResult {
@@ -24,7 +26,30 @@ export interface AiParseResult {
   rawResponse?: string
 }
 
-const SYSTEM_PROMPT = `你是一个记账解析助手。解析用户用自然语言描述的消费记录，返回 JSON 数组。
+function buildSystemPrompt(categories?: Category[]): string {
+  let categoryLines = ''
+  if (categories && categories.length > 0) {
+    categoryLines = categories.map(main => {
+      const subs = main.children.map(sub =>
+        `    ${sub.name} → category1="${main.id}" category2="${sub.id}"`
+      ).join('\n')
+      return `  ${main.icon} ${main.name}:\n${subs}`
+    }).join('\n')
+  } else {
+    // 兜底：使用系统分类关键词
+    categoryLines = `  打车/网约车/Uber→transport/taxi，公交/地铁→transport/transit，加油→transport/fuel，停车→transport/parking，火车/飞机→transport/train_flight
+  麦当劳/汉堡王/披萨/炸串/拉面/麻辣烫/烧烤/海底捞/喜茶/聚餐/UberEat/外卖→food/gathering，早餐→food/breakfast，午餐→food/lunch，晚餐→food/dinner，零食/饮料→food/snacks
+  中超/超市/日用品→shopping/daily，衣服/鞋→shopping/clothing，数码/电子→shopping/electronics，家居→shopping/homegoods，化妆品/护肤→shopping/beauty
+  房租/房贷→housing/rent，水电网→housing/utilities，物业→housing/property，维修→housing/repair
+  电影/演出→entertainment/movie，健身/运动→entertainment/fitness，游戏→entertainment/gaming，旅游→entertainment/travel，宠物→entertainment/pet
+  看病/医院→health/medical，体检→health/checkup，保健品→health/supplements
+  课程/培训→education/course，书/文具→education/books，考试→education/exam
+  红包/礼金→social/red_packet，请客→social/treating，孝敬/长辈→social/family，礼物→social/gift
+  保险→finance/insurance，贷款/利息→finance/loan_interest，手续费→finance/service_fee
+  快递→other/delivery，罚款→other/fine，收卡/买酒→other/misc`
+  }
+
+  return `你是一个记账解析助手。解析用户用自然语言描述的消费记录，返回 JSON 数组。
 
 规则：
 1. 币种：出现"刀"或"$"为AUD，出现"人民币"/"元"/"块"为CNY
@@ -33,12 +58,14 @@ const SYSTEM_PROMPT = `你是一个记账解析助手。解析用户用自然语
 4. 分摊：出现"平分"/"AA"/"均分"/"大家"/"四个人"/"一起平分" → 金额平分给相关人员
 5. "XXX是YY刀加ZZ刀" = 一个人多笔金额，加总
 6. "XXX和YYY ZZ刀" = 两人平分
-7. 分类：打车→transport/taxi，麦当劳/汉堡王/披萨/炸串/拉面/麻辣烫/烧烤/海底捞/喜茶/聚餐/UberEat/暗宝/猪脚/烧鸭/肠粉→food/gathering，中超/超市→shopping/daily，网络→housing/utilities，收卡/买酒→other/misc
+7. 分类映射（选择最匹配的）：
+${categoryLines}
 8. 日期从"X月X号"提取，默认当前日期
 
 只返回 JSON 数组：[
   {"currency":"AUD","category1":"food","category2":"gathering","date":"2026-06-15","note":"简述","items":[{"personName":"姓名","amount":15.50,"note":""}]}
 ]`
+}
 
 function httpsPost(url: string, headers: Record<string, string>, body: string): Promise<{ status: number; data: string }> {
   return new Promise((resolve, reject) => {
@@ -78,7 +105,7 @@ export async function callAI(
     const body = JSON.stringify({
       model: opts.model,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: buildSystemPrompt(opts.categories) },
         { role: 'user', content: userPrompt }
       ],
       max_tokens: 4096,

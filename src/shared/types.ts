@@ -66,12 +66,15 @@ export interface ExchangeRate {
 export interface SubCategory {
   id: string
   name: string
+  icon?: string
+  isSystem?: boolean
 }
 
 export interface Category {
   id: string
   name: string
   icon: string
+  isSystem?: boolean
   children: SubCategory[]
 }
 

@@ -7,6 +7,15 @@ import type { Category, Expense, NewExpense, Person, Currency, ExchangeRate } fr
 const api = {
   // 分类
   getCategories: (): Promise<Category[]> => ipcRenderer.invoke('categories:getAll'),
+  addCategory: (name: string, icon: string, parentId: string | null):
+    Promise<{ success: boolean; category?: any; error?: string }> =>
+    ipcRenderer.invoke('categories:add', name, icon, parentId),
+  updateCategory: (id: string, name: string, icon?: string):
+    Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('categories:update', id, name, icon),
+  deleteCategory: (id: string):
+    Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('categories:delete', id),
 
   // 人员
   getPeople: (): Promise<Person[]> => ipcRenderer.invoke('people:getAll'),
@@ -56,7 +65,7 @@ const api = {
 
   // AI 解析
   aiParse: (text: string, people: { id: number; name: string }[], opts: {
-    endpoint: string; model: string; apiKey: string; providerId: string
+    endpoint: string; model: string; apiKey: string; providerId: string; categories?: Category[]
   }): Promise<any> =>
     ipcRenderer.invoke('ai:parse', text, people, opts),
 

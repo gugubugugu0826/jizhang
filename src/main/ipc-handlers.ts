@@ -3,13 +3,24 @@
 // ============================================================
 import { ipcMain } from 'electron'
 import * as db from './database'
-import { CATEGORIES, getCategoryInfo } from '../shared/categories'
 import { callAI, AiParseOptions } from './ai-parser'
-import type { Category, Expense, NewExpense, Person, Currency, ExchangeRate } from '../shared/types'
+import type { Expense, NewExpense, Person, Currency, ExchangeRate } from '../shared/types'
 
 export function registerIpcHandlers(): void {
   // ---- 分类 ----
-  ipcMain.handle('categories:getAll', (): Category[] => CATEGORIES)
+  ipcMain.handle('categories:getAll', () => db.getAllCategories())
+
+  ipcMain.handle('categories:add', (_e, name: string, icon: string, parentId: string | null) => {
+    return db.addCategory(name, icon, parentId)
+  })
+
+  ipcMain.handle('categories:update', (_e, id: string, name: string, icon?: string) => {
+    return db.updateCategory(id, name, icon)
+  })
+
+  ipcMain.handle('categories:delete', (_e, id: string) => {
+    return db.deleteCategory(id)
+  })
 
   // ---- 人员 ----
   ipcMain.handle('people:getAll', (): Person[] => db.getPeople())
@@ -36,7 +47,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('stats:byCategory', (_e, params?: { currency?: Currency; startDate?: string; endDate?: string }) => {
     const raw = db.getCategoryStats(params)
     return raw.map(s => {
-      const cat = CATEGORIES.find(c => c.id === s.category1)
+      const cat = db.getCategoryById(s.category1)
       return { ...s, categoryName: cat?.name ?? s.category1, categoryIcon: cat?.icon ?? '📦' }
     })
   })
@@ -51,7 +62,7 @@ export function registerIpcHandlers(): void {
 
   // ---- 分类查询 ----
   ipcMain.handle('category:getInfo', (_e, category1: string, category2: string) => {
-    return getCategoryInfo(category1, category2)
+    return db.getCategoryInfo(category1, category2)
   })
 
   // ---- 汇率 ----
