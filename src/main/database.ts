@@ -436,7 +436,7 @@ export function getLatestRate(from: Currency, to: Currency): ExchangeRate | unde
     SELECT id, from_currency as fromCurrency, to_currency as toCurrency, rate, created_at as createdAt
     FROM exchange_rates
     WHERE from_currency = ? AND to_currency = ?
-    ORDER BY created_at DESC LIMIT 1
+    ORDER BY id DESC LIMIT 1
   `).get(from, to) as ExchangeRate | undefined
 }
 

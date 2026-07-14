@@ -195,12 +195,20 @@ function parseBlock(
   // ---- 模式5: 单人单笔 "张先树肠粉16刀" / "6月15号打车13.75刀" ----
   const amts = extractAmounts(text)
   if (amts.length === 1) {
-    // 尝试匹配人名
-    const nm = text.match(/([一-龥]{2,4})(?:的|自己|花了|买|买了)/)
-    const p = nm ? nameMap.get(nm[1]) : undefined
-    if (p) {
+    // 尝试匹配人名：从长到短查找已知人名后跟分隔词
+    let foundPerson: { id: number; name: string } | undefined
+    const nameMatch = text.match(/([一-龥]{2,4})(?:的|自己|花了|买|买了)/)
+    if (nameMatch) {
+      // 尝试从长到短匹配已知人名
+      for (let len = 4; len >= 2; len--) {
+        const candidate = nameMatch[1].substring(0, len)
+        const p = nameMap.get(candidate)
+        if (p) { foundPerson = p; break }
+      }
+    }
+    if (foundPerson) {
       return { currency, category1:cat1, category2:cat2, date, note:text.substring(0,120), items:[
-        {personName:p.name,personId:p.id,amount:Math.round(amts[0]*100),note:''}
+        {personName:foundPerson.name,personId:foundPerson.id,amount:Math.round(amts[0]*100),note:''}
       ], rawText:text }
     }
     // 没有明确人名，创建空 items（让用户手动分配）
@@ -222,7 +230,7 @@ function parseBlock(
 // ---- 提取金额 ----
 function extractAmounts(text: string): number[] {
   const res: number[] = []
-  const re = /(\d+\.?\d*)\s*(?:刀|元)/g
+  const re = /(\d+\.?\d*)\s*(?:刀|元|块)/g
   let m: RegExpExecArray|null
   while((m=re.exec(text))!==null) res.push(parseFloat(m[1]))
   return res
@@ -237,31 +245,55 @@ function extractPersonAmounts(
   // 按逗号切分
   const segs = text.split(/[,，]/).map(s=>s.trim()).filter(s=>s)
   for (const seg of segs) {
-    // 匹配 "人名 + 是/花了/花费 + XX刀加XX刀加XX刀"
-    // 或 "人名和/、人名 + XX刀"
-    // 或 "人名自己 + XX刀"
-    const m = seg.match(/^([一-龥]{2,4}(?:和|、)[一-龥]{2,4}|[一-龥]{2,4})/)
-    if (!m) continue
-    const namePart = m[1]
+    // 从长到短匹配已知人名（避免匹配到"廖泽平是"或"打车"等非人名）
+    let namePart: string | undefined
+    let twoNames: string[] | undefined
+    // 先检查 "XXX和YYY" 双人名模式：利用 nameMap 精确匹配
+    for (let len1 = 4; len1 >= 2; len1--) {
+      const n1 = seg.substring(0, len1)
+      if (!nameMap.has(n1)) continue
+      // 找到第一个名字后，后面应是"和"或"、"
+      const sep = seg[len1]
+      if (sep !== '和' && sep !== '、') break // 非分隔符则结束（不能是名字的延长）
+      const rest = seg.substring(len1 + 1)
+      for (let len2 = 4; len2 >= 2; len2--) {
+        const n2 = rest.substring(0, len2)
+        if (nameMap.has(n2)) {
+          namePart = n1 + sep + n2
+          twoNames = [n1, n2]
+          break
+        }
+      }
+      if (twoNames) break
+    }
+    // 单人名模式：从长到短匹配已知人名
+    if (!namePart) {
+      for (let len = 4; len >= 2; len--) {
+        const candidate = seg.substring(0, len)
+        if (nameMap.has(candidate)) {
+          namePart = candidate
+          break
+        }
+      }
+    }
+    if (!namePart) continue
 
     const amts: number[] = []
-    const amtRe = /(\d+\.?\d*)\s*(?:刀|元)/g
+    const amtRe = /(\d+\.?\d*)\s*(?:刀|元|块)/g
     let am: RegExpExecArray|null
     while((am=amtRe.exec(seg))!==null) amts.push(parseFloat(am[1]))
 
     if (amts.length === 0) continue
     const total = amts.reduce((a,b)=>a+b,0)
 
-    // 检查是否是两个人名（"XXX和YYY"）
-    const twoNames = namePart.match(/^([一-龥]{2,4})(?:和|、)([一-龥]{2,4})$/)
     if (twoNames) {
       const per = total / 2
-      const p1 = nameMap.get(twoNames[1]), p2 = nameMap.get(twoNames[2])
-      result.push({name:twoNames[1],id:p1?.id,total:per,detail:`与${twoNames[2]}平分`})
-      result.push({name:twoNames[2],id:p2?.id,total:per,detail:`与${twoNames[1]}平分`})
+      const p1 = nameMap.get(twoNames[0])!, p2 = nameMap.get(twoNames[1])!
+      result.push({name:twoNames[0],id:p1.id,total:per,detail:`与${twoNames[1]}平分`})
+      result.push({name:twoNames[1],id:p2.id,total:per,detail:`与${twoNames[0]}平分`})
     } else {
-      const p = nameMap.get(namePart)
-      result.push({name:namePart,id:p?.id,total,detail:amts.length>1?amts.map(a=>a+'刀').join('+'):''})
+      const p = nameMap.get(namePart)!
+      result.push({name:namePart,id:p.id,total,detail:amts.length>1?amts.map(a=>a+'刀').join('+'):''})
     }
   }
   // 合并同名

@@ -50,7 +50,15 @@
       "Bash(npx vitest *)",
       "Bash(npm install -D vitest*)",
       "Bash(git commit *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(cd \"d:/AI_Study/记账APP\" && rm -f .claude/pass/*.txt && ls .claude/pass/)",
+      "Bash(python3 -c ' *)",
+      "Bash(grep -rnE 'sk-[a-zA-Z0-9]{20,}' src/ --include='*.ts' --include='*.tsx')",
+      "Bash(grep -rnE '-----BEGIN' src/ --include='*.ts' --include='*.tsx' --include='*.pem')",
+      "Bash(grep -rnE '[1-9]\\\\d{10,10}' src/ --include='*.ts' --include='*.tsx')"
+    ],
+    "additionalDirectories": [
+      "D:\\AI_Study\\记账APP\\.claude\\pass"
     ]
   }
 }
