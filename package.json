@@ -1,0 +1,40 @@
+{
+  "name": "jizhang",
+  "version": "1.0.0",
+  "description": "记账APP — 个人财务管理工具",
+  "main": "./out/main/index.js",
+  "author": "记账APP",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "package:win": "electron-vite build && electron-builder --win",
+    "package:mac": "electron-vite build && electron-builder --mac",
+    "package:all": "electron-vite build && electron-builder --win --mac"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^6.3.2",
+    "antd": "^6.5.0",
+    "better-sqlite3": "^12.11.1",
+    "dayjs": "^1.11.21",
+    "echarts": "^6.1.0",
+    "echarts-for-react": "^3.0.6",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-router-dom": "^7.18.1"
+  },
+  "devDependencies": {
+    "@electron-toolkit/preload": "^3.0.2",
+    "@electron-toolkit/utils": "^4.0.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^33.4.11",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.6"
+  }
+}
