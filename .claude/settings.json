@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "before": [
+      {
+        "tool": "Bash",
+        "pattern": "*git commit*",
+        "skill": "gitcommit-agent"
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(rm -f .claude/pass/*.txt)",
+      "Bash(rm .claude/pass/*.txt)",
+      "Bash(rm -rf .claude/pass/*.txt)",
+      "Write(.claude/pass/**)",
+      "Edit(.claude/pass/**)",
+      "Bash(mkdir -p .claude/pass)",
+      "Bash(npx vitest *)",
+      "Bash(npm install -D vitest*)",
+      "Bash(git commit *)",
+      "Bash(git add *)"
+    ]
+  }
+}

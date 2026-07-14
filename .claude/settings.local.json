@@ -38,7 +38,19 @@
       "Bash(unset ELECTRON_RUN_AS_NODE)",
       "Read(//c/Users/zepli/AppData/Roaming/**)",
       "Read(//c/Users/zepli/AppData/Local/**)",
-      "Read(//c/Users/zepli/**)"
+      "Read(//c/Users/zepli/**)",
+      "Bash(mkdir -p \"d:/AI_Study/记账APP/.claude/agents\")",
+      "Bash(mkdir -p \"d:/AI_Study/记账APP/.claude/pass\")",
+      "Bash(rm -f .claude/pass/*.txt)",
+      "Bash(rm .claude/pass/*.txt)",
+      "Bash(rm -rf .claude/pass/*.txt)",
+      "Write(.claude/pass/**)",
+      "Edit(.claude/pass/**)",
+      "Bash(mkdir -p .claude/pass)",
+      "Bash(npx vitest *)",
+      "Bash(npm install -D vitest*)",
+      "Bash(git commit *)",
+      "Bash(git add *)"
     ]
   }
 }
